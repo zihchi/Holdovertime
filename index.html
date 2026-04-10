@@ -256,6 +256,27 @@
             </div>
         </div>
 
+        <!-- NEW: Collapsible Fluid Document Viewer -->
+        <div class="ios-card p-0 overflow-hidden shadow-sm border border-blue-100">
+            <div id="toggleFluidDocBtn" class="bg-blue-50/50 hover:bg-blue-50 p-4 flex justify-between items-center cursor-pointer transition-colors duration-200">
+                <div class="flex items-center space-x-2 text-blue-600 font-semibold text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>View Fluid Application Document</span>
+                </div>
+                <span id="fluidDocArrow" class="text-blue-500 transform transition-transform duration-300">▼</span>
+            </div>
+            <div id="fluidDocContainer" class="hidden p-4 bg-white border-t border-blue-100 transition-all duration-300">
+                <div class="image-placeholder w-full min-h-[200px] border-blue-200 bg-blue-50/30">
+                    <img id="fluidGuidelineImage" src="" alt="Fluid Guideline Document" class="max-w-full rounded shadow-sm hidden">
+                    <div id="fluidGuidelineHint" class="text-gray-500 text-xs text-center leading-relaxed">
+                        [Image Integration Ready]<br>
+                        Waiting for Fluid Document Image upload...<br><br>
+                        <span class="text-blue-400 font-mono text-[10px] break-all">URL: <span id="fluidDocUrlDebug"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Timer Controls -->
         <div class="ios-card p-4">
             <div class="flex justify-between items-center mb-4">
@@ -415,7 +436,8 @@
                 }
             };
 
-            const GITHUB_BASE_URL = "https://raw.githubusercontent.com/username/repo/main/images/";
+            // ✅ 已對接您的專屬 GitHub 儲存庫 (建議在 repo 內建立 images 資料夾集中管理)
+            const GITHUB_BASE_URL = "https://raw.githubusercontent.com/zihchi/Holdovertime/main/images/";
 
             // DOM Elements
             const tempSelect = document.getElementById('tempSelect');
@@ -434,6 +456,34 @@
             const fetchMetarBtn = document.getElementById('fetchMetarBtn');
             const metarDisplay = document.getElementById('metarDisplay');
             const metarError = document.getElementById('metarError');
+
+            // --- Collapsible Fluid Document Elements ---
+            const toggleFluidDocBtn = document.getElementById('toggleFluidDocBtn');
+            const fluidDocContainer = document.getElementById('fluidDocContainer');
+            const fluidDocArrow = document.getElementById('fluidDocArrow');
+            const fluidDocUrlDebug = document.getElementById('fluidDocUrlDebug');
+
+            // Setup Fluid Document Toggle behavior
+            toggleFluidDocBtn.addEventListener('click', () => {
+                fluidDocContainer.classList.toggle('hidden');
+                if (fluidDocContainer.classList.contains('hidden')) {
+                    fluidDocArrow.style.transform = 'rotate(0deg)';
+                } else {
+                    fluidDocArrow.style.transform = 'rotate(180deg)';
+                    
+                    // 呼叫對應的防冰液圖片 (請確保上傳至 GitHub 的檔名為 clariant_mp_iv.png)
+                    const fluidImageName = "clariant_mp_iv.png"; 
+                    const fullFluidUrl = GITHUB_BASE_URL + fluidImageName;
+                    
+                    // 渲染圖片並移除佔位符框線
+                    const fluidImgElement = document.getElementById('fluidGuidelineImage');
+                    fluidImgElement.src = fullFluidUrl;
+                    fluidImgElement.classList.remove('hidden');
+                    
+                    document.getElementById('fluidGuidelineHint').classList.add('hidden');
+                    fluidImgElement.parentElement.classList.remove('image-placeholder', 'min-h-[200px]', 'bg-blue-50/30', 'border-blue-200');
+                }
+            });
 
             // Populate OAT Options (0 to -40)
             for (let i = 0; i >= -40; i--) {
@@ -635,12 +685,17 @@
                      upperTimeDisplay.innerHTML = '--:--';
                 }
 
-                // --- 5. Debug Image URL ---
-                const hotImageName = `hot_${selectedTemp}_${selectedConc}_${mappedPrecip}.jpg`;
+                // --- 5. Update Reference Image ---
+                const hotImageName = `hot_${selectedTemp}_${selectedConc}_${mappedPrecip}.png`;
                 const fullHotUrl = GITHUB_BASE_URL + hotImageName;
-                hotUrlDebug.classList.remove('hidden');
-                hotUrlDebug.textContent = fullHotUrl;
-                hotImageHint.innerHTML = "Image Integration Ready:<br>";
+                
+                // 渲染下方輔助檢查的圖片並移除佔位符
+                const hotImgElement = document.getElementById('hotImage');
+                hotImgElement.src = fullHotUrl;
+                hotImgElement.classList.remove('hidden');
+                
+                document.getElementById('hotImageHint').classList.add('hidden');
+                hotImgElement.parentElement.classList.remove('image-placeholder', 'min-h-[150px]');
             }
 
             // --- API Fetch Logic (Dual-Engine) ---
