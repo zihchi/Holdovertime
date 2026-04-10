@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -142,17 +142,17 @@
             <div id="metarError" class="mt-3 text-sm text-red-500 hidden font-bold"></div>
         </div>
 
-        <!-- Weather Inputs (Fixed Alignment & Flexbox for iPad Landscape) -->
-        <div class="ios-card p-2">
+        <!-- Weather Inputs -->
+        <div class="ios-card p-0">
             <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200">
                 <!-- Temperature -->
-                <div class="flex flex-col items-center justify-center p-6 bg-white hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center space-x-2 text-blue-600 font-bold text-lg mb-4">
+                <div class="flex flex-col p-6 bg-white hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-center space-x-2 text-blue-600 font-bold text-lg mb-4">
                         <span class="text-2xl">🌡️</span>
                         <span>Temperature</span>
                     </div>
-                    <div class="w-full flex justify-center">
-                        <select id="tempSelect" required class="w-full max-w-sm text-center text-blue-700 bg-blue-50/50 outline-none appearance-none cursor-pointer font-bold text-lg py-3 px-4 rounded-xl transition-colors duration-300 border border-blue-100 shadow-sm focus:ring-2 focus:ring-blue-400">
+                    <div class="w-full">
+                        <select id="tempSelect" required class="w-full text-center text-blue-700 bg-white outline-none appearance-none cursor-pointer font-bold text-lg py-3 px-4 rounded-xl transition-colors duration-300 border border-blue-300 shadow-sm focus:ring-2 focus:ring-blue-400">
                             <option value="" selected disabled hidden>Select Temperature</option>
                             <option value="above_0">Above 0 °C</option>
                             <!-- Other options populated by JS -->
@@ -161,15 +161,15 @@
                 </div>
                 
                 <!-- Precipitation -->
-                <div class="flex flex-col items-center justify-center p-6 bg-white hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center space-x-2 text-gray-600 font-bold text-lg mb-4">
+                <div class="flex flex-col p-6 bg-white hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-center space-x-2 text-gray-600 font-bold text-lg mb-4">
                         <span class="text-2xl">🌧️</span>
                         <span>Precipitation</span>
                     </div>
-                    <div class="w-full flex justify-center">
-                        <select id="precipSelect" required class="w-full max-w-sm text-center text-blue-700 bg-blue-50/50 outline-none appearance-none cursor-pointer font-bold text-base py-3 px-4 rounded-xl transition-colors duration-300 border border-blue-100 shadow-sm focus:ring-2 focus:ring-blue-400">
+                    <div class="w-full">
+                        <select id="precipSelect" required class="w-full text-center text-blue-700 bg-white outline-none appearance-none cursor-pointer font-bold text-base py-3 px-4 rounded-xl transition-colors duration-300 border border-blue-300 shadow-sm focus:ring-2 focus:ring-blue-400">
                             <option value="" selected disabled hidden>Select Precipitation</option>
-                            <option value="fz_fog">Freezing Fog, Mist, Ice Crystals</option>
+                            <option value="fz_fog">Freezing Fog, Freezing Mist or Ice Crystals</option>
                             <option value="snow_mix_fz_fog">Snow mixed with Freezing Fog</option>
                             <option value="snow">Snow, Snow Grains or Snow Pellets</option>
                             <option value="fz_drizzle">Freezing Drizzle</option>
@@ -179,6 +179,16 @@
                             <option value="active_frost">Active Frost</option>
                             <option value="other">Other (Heavy Snow, Hail, etc.)</option>
                         </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Precipitation Advisory Note -->
+            <div id="precipNoteContainer" class="hidden px-6 py-4 bg-blue-50 border-t border-blue-100 transition-all duration-300">
+                <div class="flex items-start space-x-3">
+                    <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div id="precipNoteText" class="text-sm text-blue-900 font-semibold leading-relaxed">
+                        <!-- Content injected by JS -->
                     </div>
                 </div>
             </div>
@@ -385,6 +395,18 @@
     <!-- Application Logic -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- ⚙️ PRECIPITATION DYNAMIC ADVISORY NOTES ---
+            const PRECIP_NOTES = {
+                'fz_fog': `凍霧（Freezing mist）最好透過實際觀測來確認。航空例行天氣報告（METAR）從不會報告凍霧；然而，當氣溫在 0 °C (32 °F) 或以下且有霧（Mist）時，就有可能發生。<br><br>在冰晶（Ice crystals）混合凍霧（Freezing fog）或凍霧（Freezing mist）的情況下，請適用「凍霧」的防護時間。`,
+                'snow_mix_fz_fog': `必須使用「降雪強度與盛行能見度關係表」（Table 54）來確認降水強度不大於「中度（Moderate）」。如果回報的能見度對應到「大雪（Heavy）」等級的降水強度，則無有效的防護時間。`,
+                'snow': `若要判定降雪強度，必須使用「降雪強度與盛行能見度關係表」（Table 54）。<br><br>在極輕雪（Very light snow）、小雪（Light snow）或中度雪（Moderate snow）混合冰晶的情況下，請適用降雪的防護時間。`,
+                'fz_drizzle': `包含輕度、中度與重度凍毛毛雨（Freezing drizzle）。如果無法確切辨識出是凍毛毛雨，請直接適用「輕凍雨（Light freezing rain）」的防護時間。`,
+                'mod_snow_mix_rain': `這些防護時間適用於「中度（Moderate）」降水強度。若遇到極輕雪或小雪混合小雨或毛毛雨時，請改用「輕凍雨（Light freezing rain）」的防護時間。必須使用「降雪強度與盛行能見度關係表」（Table 54）來確認降水強度。如果回報的能見度對應到「大雪（Heavy）」等級，則無有效的防護時間。<br><br>當氣溫在 0 °C (32 °F) 或以下時，此氣候條件無有效的防護時間規範。`,
+                'rain_cold_wing': `當氣溫在 0 °C (32 °F) 或以下時，此氣候條件無有效的防護時間規範。`,
+                'active_frost': `Use TABLE 1: ACTIVE FROST HOLDOVER TIMES FOR SAE TYPE I, TYPE II, TYPE III, AND TYPE IV FLUIDS`,
+                'other': `包含大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 53 提供了 Type IV PG 防冰液在冰珠與小冰雹情況下的寬限時間）。`
+            };
+
             // --- ⚙️ FAA TABLE 33 DATABASE (Clariant Safewing MP IV LAUNCH) ---
             const HOT_DATA = {
                 t1: { // -3 °C and above
@@ -417,6 +439,8 @@
             // DOM Elements
             const tempSelect = document.getElementById('tempSelect');
             const precipSelect = document.getElementById('precipSelect');
+            const precipNoteContainer = document.getElementById('precipNoteContainer');
+            const precipNoteText = document.getElementById('precipNoteText');
             const concRadios = document.querySelectorAll('input[name="conc"]');
             const snowSettings = document.getElementById('snowSettings');
             const visSelect = document.getElementById('visSelect');
@@ -565,6 +589,14 @@
                     lowerTimeDisplay.className = 'flex items-center justify-center h-14 text-5xl font-light text-gray-300 transition-all duration-300';
                     upperTimeDisplay.className = 'flex items-center justify-center h-14 text-5xl font-light text-gray-300 transition-all duration-300';
                 };
+
+                // --- Update Precipitation Advisory Notes ---
+                if (precipVal && PRECIP_NOTES[precipVal]) {
+                    precipNoteText.innerHTML = PRECIP_NOTES[precipVal];
+                    precipNoteContainer.classList.remove('hidden');
+                } else {
+                    precipNoteContainer.classList.add('hidden');
+                }
 
                 if (!selectedTemp || !precipVal) {
                     resetDisplays();
