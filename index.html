@@ -536,20 +536,27 @@
             document.getElementById('snowGuidelineImage').src = GITHUB_BASE_URL + "table_54_snowfall.jpg";
             fluidGuidelineImage.src = GITHUB_BASE_URL + "clariant_mp_iv.jpg"; 
 
-            // Toggles
-            ['toggleSnowDocBtn', 'toggleFluidDocBtn', 'toggleNotesBtn', 'toggleCautionsBtn'].forEach(id => {
-                const btn = document.getElementById(id);
-                if(!btn) return;
-                const container = document.getElementById(id.replace('toggle', '').replace('Btn', 'Container'));
-                const arrow = document.getElementById(id.replace('toggle', '').replace('Btn', 'Arrow'));
+            // Explicit Toggles to avoid ID case-sensitivity issues
+            const toggles = [
+                { btn: 'toggleSnowDocBtn', container: 'snowDocContainer', arrow: 'snowDocArrow' },
+                { btn: 'toggleFluidDocBtn', container: 'fluidDocContainer', arrow: 'fluidDocArrow' },
+                { btn: 'toggleNotesBtn', container: 'notesContainer', arrow: 'notesArrow' },
+                { btn: 'toggleCautionsBtn', container: 'cautionsContainer', arrow: 'cautionsArrow' }
+            ];
+
+            toggles.forEach(t => {
+                const btn = document.getElementById(t.btn);
+                if (!btn) return;
+                const container = document.getElementById(t.container);
+                const arrow = document.getElementById(t.arrow);
                 
                 btn.addEventListener('click', () => {
                     container.classList.toggle('hidden');
                     if (container.classList.contains('hidden')) {
-                        if(id === 'toggleNotesBtn' || id === 'toggleCautionsBtn') container.classList.remove('flex');
+                        if(t.btn === 'toggleNotesBtn' || t.btn === 'toggleCautionsBtn') container.classList.remove('flex');
                         arrow.style.transform = 'rotate(0deg)';
                     } else {
-                        if(id === 'toggleNotesBtn' || id === 'toggleCautionsBtn') container.classList.add('flex');
+                        if(t.btn === 'toggleNotesBtn' || t.btn === 'toggleCautionsBtn') container.classList.add('flex');
                         arrow.style.transform = 'rotate(180deg)';
                     }
                 });
