@@ -853,6 +853,14 @@
                 btn.textContent = 'Loading...';
                 mError.classList.add('hidden');
 
+                // 首選：自有 Cloudflare Worker 直打 NOAA（快又新鮮，CORS 已開放 zihchi.github.io）
+                const fetchWorker = async () => {
+                    const res = await fetch(`https://elb.zihchi.workers.dev/api/wx?type=metar&ids=${icao}`, { cache: 'no-store' });
+                    if (!res.ok) throw new Error('Worker failed');
+                    const data = await res.json();
+                    if (!data || data.length === 0) throw new Error('Worker empty');
+                    return { raw: data[0].rawOb || data[0].raw, temp: data[0].temp != null ? Math.round(data[0].temp) : null };
+                };
                 const fetchNoaaJson = async () => {
                     const res = await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`);
                     if (!res.ok) throw new Error('NOAA JSON failed');
@@ -876,7 +884,7 @@
                 };
 
                 try {
-                    const result = await Promise.any([fetchNoaaJson(), fetchNoaaText(), fetchVatsim()]);
+                    const result = await Promise.any([fetchWorker(), fetchNoaaJson(), fetchNoaaText(), fetchVatsim()]);
                     let rawMetar = result.raw;
                     let tempC = result.temp;
 
