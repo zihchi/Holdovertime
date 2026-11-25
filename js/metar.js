@@ -42,11 +42,14 @@
         return 10;
     }
 
+    // Returns the body tokens plus their offset in the full whitespace-split token list
     function bodyTokens(raw) {
-        let toks = String(raw || '').replace(/=+\s*$/, '').trim().split(/\s+/).filter(Boolean);
-        if (toks[0] === 'METAR' || toks[0] === 'SPECI') toks = toks.slice(1);
+        const all = String(raw || '').trim().split(/\s+/).filter(Boolean);
+        let start = (all[0] === 'METAR' || all[0] === 'SPECI') ? 1 : 0;
+        let toks = all.slice(start).map(t => t.replace(/=+$/, ''));
         const cut = toks.findIndex(t => CUT_TOKENS.test(t));
-        return cut >= 0 ? toks.slice(0, cut) : toks;
+        if (cut >= 0) toks = toks.slice(0, cut);
+        return { all, toks, offset: start };
     }
 
     function obsDate(ddhhmm, now) {
@@ -58,8 +61,10 @@
     }
 
     function parse(raw, now) {
-        const toks = bodyTokens(raw);
-        const out = { station: null, time: null, auto: false, tempC: null, vis: null, wx: [], cavok: false };
+        const bt = bodyTokens(raw);
+        const toks = bt.toks, off = bt.offset;
+        // *Idx fields are indices into out.tokens (the full METAR split on whitespace) – used to highlight
+        const out = { tokens: bt.all, station: null, time: null, auto: false, tempC: null, tempIdx: -1, vis: null, wx: [], cavok: false };
         let i = 0;
         if (toks[i] && /^[A-Z][A-Z0-9]{3}$/.test(toks[i])) out.station = toks[i++];
         if (toks[i] && /^\d{6}Z$/.test(toks[i])) { out.time = obsDate(toks[i], now); i++; }
@@ -80,29 +85,31 @@
                 const v = parseInt(tm[1].replace('M', ''), 10);
                 out.tempC = tm[1].startsWith('M') ? -v : v;
                 if (out.tempC === 0) out.tempC = 0;   // normalise -0
+                out.tempIdx = i + off;
                 continue;
             }
 
             if (!visDone) {
-                if (t === 'CAVOK') { out.cavok = true; out.vis = { value: 10000, unit: 'm', text: 'CAVOK' }; visDone = true; continue; }
+                if (t === 'CAVOK') { out.cavok = true; out.vis = { value: 10000, unit: 'm', text: 'CAVOK', idx: [i + off] }; visDone = true; continue; }
                 let m = t.match(/^(\d{4})(NDV)?$/);
-                if (m) { out.vis = { value: +m[1], unit: 'm', text: t }; visDone = true; continue; }
+                if (m) { out.vis = { value: +m[1], unit: 'm', text: t, idx: [i + off] }; visDone = true; continue; }
                 // Statute miles: "10SM", "1/2SM", "M1/4SM", "P6SM", or "1 1/2SM" (two tokens)
                 m = t.match(/^([MP])?(\d+)(?:\/(\d+))?SM$/);
                 if (m) {
                     let v = m[3] ? (+m[2] / +m[3]) : +m[2];
                     let text = t;
-                    if (m[3] && i > 0 && /^\d$/.test(toks[i - 1])) { v += +toks[i - 1]; text = toks[i - 1] + ' ' + t; }
+                    const idx = [i + off];
+                    if (m[3] && i > 0 && /^\d$/.test(toks[i - 1])) { v += +toks[i - 1]; text = toks[i - 1] + ' ' + t; idx.unshift(i - 1 + off); }
                     if (m[1] === 'M') v -= 0.01;   // less than
-                    out.vis = { value: v, unit: 'sm', text }; visDone = true; continue;
+                    out.vis = { value: v, unit: 'sm', text, idx }; visDone = true; continue;
                 }
                 if (/^\d$/.test(t) && toks[i + 1] && /^\d\/\d+SM$/.test(toks[i + 1])) continue; // whole part of "1 1/2SM"
                 m = t.match(/^(\d+)KM$/);
-                if (m) { out.vis = { value: +m[1] * 1000, unit: 'm', text: t }; visDone = true; continue; }
+                if (m) { out.vis = { value: +m[1] * 1000, unit: 'm', text: t, idx: [i + off] }; visDone = true; continue; }
             }
 
             const w = parseWx(t);
-            if (w) out.wx.push(w);
+            if (w) { w.idx = i + off; out.wx.push(w); }
         }
         if (out.vis) out.vis.index = visIndex(out.vis.value, out.vis.unit);
         return out;
@@ -120,7 +127,8 @@
         const has = ph => precipGroups.some(g => g.phen.includes(ph));
         const grp = ph => precipGroups.find(g => g.phen.includes(ph));
         const codes = precipGroups.map(g => g.raw).join(' ');
-        const res = (precip, reason, extra) => Object.assign({ precip, allowance: '', reason, warnings }, extra || {});
+        // usedIdx: token indices of the weather groups that determined an automatic selection
+        const res = (precip, reason, extra) => Object.assign({ precip, allowance: '', reason, warnings, usedIdx: precip ? precipGroups.map(g => g.idx) : [] }, extra || {});
 
         if (!precipGroups.length) return res('', 'METAR 未報告降水或凍霧（No precipitation / freezing fog reported）。若有結霜請手動選擇 Active Frost。');
 

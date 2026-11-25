@@ -146,7 +146,6 @@
                 <input type="text" id="icaoInput" placeholder="e.g. RJSS" maxlength="4" class="w-full bg-white border-2 border-blue-400 rounded-xl px-5 py-3 text-gray-800 uppercase font-mono text-lg tracking-widest focus:outline-none focus:ring-4 focus:ring-blue-100 transition shadow-sm">
                 <button id="fetchMetarBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow-md transition whitespace-nowrap active:scale-95 text-lg">Load METAR</button>
             </div>
-            <div id="metarAutoInfo" class="hidden mt-4 text-sm leading-relaxed bg-sky-50 border border-sky-200 rounded-xl p-4"></div>
         </div>
 
         <!-- De/Anti-Icing Fluid Selection -->
@@ -311,8 +310,9 @@
                             <span id="snowDocArrow" style="transform: rotate(0deg);" class="text-blue-600 font-bold transition-transform duration-300">▼</span>
                         </div>
                         <div id="snowDocContainer" class="hidden p-4 border-t border-blue-100 transition-all duration-300 bg-gray-50">
+                            <div class="text-center text-xs text-gray-500 mb-2">🔍 點圖片全螢幕放大 · Tap image to zoom</div>
                             <div class="w-full flex justify-center">
-                                <img id="snowGuidelineImage" src="" alt="Table 57 Snowfall Intensities" loading="lazy" class="max-w-full rounded-lg shadow-sm border border-gray-200">
+                                <img id="snowGuidelineImage" src="" alt="Table 57 Snowfall Intensities" loading="lazy" class="zoomable max-w-full rounded-lg shadow-sm border border-gray-200 cursor-zoom-in">
                             </div>
                         </div>
                     </div>
@@ -330,8 +330,9 @@
                 <span id="fluidDocArrow" style="transform: rotate(180deg);" class="text-blue-700 font-bold transition-transform duration-300 pr-2">▼</span>
             </div>
             <div id="fluidDocContainer" class="p-6 bg-gray-50 border-t border-blue-100 transition-all duration-300">
+                <div class="text-center text-xs text-gray-500 mb-3">🔍 點圖片全螢幕放大 · Tap image to zoom</div>
                 <div class="w-full flex justify-center">
-                    <img id="fluidGuidelineImage" src="" alt="FAA Holdover Time Table" class="max-w-full rounded-xl shadow-md border border-gray-200">
+                    <img id="fluidGuidelineImage" src="" alt="FAA Holdover Time Table" class="zoomable max-w-full rounded-xl shadow-md border border-gray-200 cursor-zoom-in">
                 </div>
             </div>
         </div>
@@ -366,6 +367,20 @@
         </div>
     </div>
 
+    <!-- Full-screen image viewer (pinch / drag / double-tap / wheel zoom) -->
+    <div id="imgViewer" class="hidden fixed inset-0 z-[100] bg-black/95 select-none" style="touch-action: none;">
+        <img id="ivImg" alt="" draggable="false" style="position:absolute; left:0; top:0; transform-origin:0 0; max-width:none; will-change:transform;">
+        <div class="absolute top-0 inset-x-0 flex items-center justify-between p-3 bg-black/75" style="padding-top: max(0.75rem, env(safe-area-inset-top));">
+            <div id="ivTitle" class="text-white text-sm font-bold truncate pr-3"></div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button id="ivOut" aria-label="Zoom out" class="w-10 h-10 rounded-full bg-white/15 text-white text-2xl font-bold">−</button>
+                <button id="ivIn" aria-label="Zoom in" class="w-10 h-10 rounded-full bg-white/15 text-white text-2xl font-bold">+</button>
+                <button id="ivClose" aria-label="Close" class="w-10 h-10 rounded-full bg-white/25 text-white text-xl font-bold">✕</button>
+            </div>
+        </div>
+        <div id="ivHint" class="absolute bottom-0 inset-x-0 text-center text-white/70 text-xs p-3" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">雙指縮放、拖曳移動、雙擊放大/還原 · Pinch, drag, double-tap</div>
+    </div>
+
     <!-- HOT database (generated from the FAA PDF) -->
     <script src="data/hot-2026-27.js"></script>
     <script src="js/metar.js"></script>
@@ -379,6 +394,12 @@
             const pad2 = n => String(n).padStart(2, '0');
             const COL_LABELS = { fz_fog: 'Freezing Fog / Mist / Ice Crystals', snow_mix_fz_fog: 'Snow mixed with Freezing Fog', snow_verylight: 'Very Light Snow', snow_light: 'Light Snow', snow_moderate: 'Moderate Snow', fz_drizzle: 'Freezing Drizzle', light_fz_rain: 'Light Freezing Rain', mod_snow_mix_rain: 'Moderate Snow mixed with Rain', rain_cold_wing: 'Rain on Cold-Soaked Wing' };
             const tableImg = n => `${IMG_BASE}table_${pad2(n)}.jpg`;
+            const setTableImage = (img, n) => {
+                const src = tableImg(n);
+                if (img.getAttribute('src') !== src) img.src = src;
+                img.dataset.hd = `${IMG_BASE}hd/table_${pad2(n)}.jpg`;
+                img.dataset.title = `FAA Table ${n}`;
+            };
 
             // ---------- Text content (zh-TW, translated from the FAA document) ----------
             const PRECIP_NOTES = {
@@ -500,7 +521,7 @@
             const lowerTimeDisplay = $('lowerTime'), upperTimeDisplay = $('upperTime'), resultInfo = $('resultInfo');
             const fluidGuidelineImage = $('fluidGuidelineImage');
 
-            $('snowGuidelineImage').src = tableImg(57);
+            setTableImage($('snowGuidelineImage'), 57);
 
             // ---------- Fluid dropdown ----------
             const FLUIDS = {};
@@ -715,7 +736,7 @@
                 if (precipVal === 'active_frost') imgTable = 1;
                 else if (precipVal === 'allowance_pl' && !isTypeI && glycol) imgTable = glycol === 'EG' ? 55 : 56;
                 else if (precipVal === 'allowance_pl' && !isTypeI) imgTable = 53;
-                fluidGuidelineImage.src = tableImg(imgTable);
+                setTableImage(fluidGuidelineImage, imgTable);
                 $('fluidDocTitle').textContent = `View FAA Table ${imgTable}` + (imgTable === fluid.table ? ` – ${fluid.name}` : imgTable === 1 ? ' – Active Frost' : imgTable === 53 ? ' – Validation Status (Allowance)' : ' – Allowance Times');
 
                 renderNotesAndCautions(fluid, precipVal, glycol);
@@ -877,67 +898,55 @@
                 return (airportCache[icao] = { lat: a.lat, lon: a.lon, name: a.name });
             }
 
+            const escHtml = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const RED = t => `<span class="text-red-600 font-black">${escHtml(t)}</span>`;
+
+            // Show the METAR with every group that was auto-filled into the form in red
+            function renderMetar(P, used, source) {
+                const html = P.tokens.map((t, i) => {
+                    if (i === P.tempIdx) {                       // only the temperature part of "M03/M04"
+                        const k = t.indexOf('/');
+                        return RED(t.slice(0, k)) + escHtml(t.slice(k));
+                    }
+                    return used.has(i) ? RED(t) : escHtml(t);
+                }).join(' ');
+                let age = '';
+                if (P.time) {
+                    const mins = Math.round((Date.now() - P.time.getTime()) / 60000);
+                    if (mins > 90) age = `<div class="mt-1 text-amber-700 font-bold font-sans">⚠️ 報文已超過 90 分鐘（${mins} 分鐘前）</div>`;
+                }
+                $('metarDisplay').innerHTML = html + (source.startsWith('VATSIM') ? ' <span class="text-gray-400 font-sans">(VATSIM)</span>' : '') + age;
+                $('metarDisplay').classList.remove('hidden');
+            }
+
             function applyMetar(raw, source, airport) {
                 const P = window.MetarHOT.parse(raw);
                 const map = window.MetarHOT.mapPrecip(P);
-                const rows = [];
-                const row = (label, value, cls = '') => rows.push(`<div class="flex gap-2"><span class="font-bold text-sky-800 whitespace-nowrap">${label}</span><span class="${cls}">${value}</span></div>`);
-                const warn = [];
+                const used = new Set();
 
-                // Observation time / age
-                if (P.time) {
-                    const age = Math.round((Date.now() - P.time.getTime()) / 60000);
-                    const hhmm = String(P.time.getUTCHours()).padStart(2, '0') + String(P.time.getUTCMinutes()).padStart(2, '0') + 'Z';
-                    row('觀測時間 Obs', `${hhmm}（${age >= 0 ? age + ' 分鐘前' : '—'}）· 來源 ${source}`, age > 90 ? 'text-red-600 font-bold' : '');
-                    if (age > 90) warn.push('METAR 已超過 90 分鐘，請確認是否為最新報告。');
-                } else {
-                    row('來源 Source', source);
+                if (P.tempC !== null && P.tempC >= -40) {
+                    tempSelect.value = P.tempC > 0 ? 'above_0' : String(P.tempC);
                 }
-
-                // Temperature
-                if (P.tempC !== null) {
-                    tempSelect.value = P.tempC > 0 ? 'above_0' : (P.tempC >= -40 ? String(P.tempC) : '');
-                    row('溫度 OAT', `${P.tempC} °C → ${P.tempC > 0 ? 'Above 0 °C' : P.tempC + ' °C'}`);
-                } else {
-                    row('溫度 OAT', '無法解析，請手動選擇', 'text-red-600 font-bold');
-                }
-
                 // Prevailing visibility (never RVR)
                 if (P.vis) {
-                    const unitRadio = $(P.vis.unit === 'sm' ? 'unit-sm' : 'unit-m');
-                    unitRadio.checked = true;
+                    $(P.vis.unit === 'sm' ? 'unit-sm' : 'unit-m').checked = true;
                     populateVisibilityOptions(P.vis.unit, false);
                     visSelect.value = String(P.vis.index);
-                    const label = visSelect.options[visSelect.selectedIndex] ? visSelect.options[visSelect.selectedIndex].text : '';
-                    row('盛行能見度 Prevailing Vis', `<span class="font-mono">${P.vis.text}</span> → Table 57: ${label}<span class="text-gray-500">（使用盛行能見度，不使用 RVR）</span>`);
+                    P.vis.idx.forEach(i => used.add(i));
                 } else {
                     visSelect.value = '';
-                    row('盛行能見度 Prevailing Vis', '無法解析，請手動選擇', 'text-red-600 font-bold');
                 }
-
-                // Day / Night from sun elevation at observation time
+                // Day / Night from sun elevation at the airport at observation time (sunrise–sunset)
                 if (airport && P.time) {
-                    const elev = window.MetarHOT.sunElevation(P.time, airport.lat, airport.lon);
-                    const day = elev > -0.833;   // between sunrise and sunset
+                    const day = window.MetarHOT.sunElevation(P.time, airport.lat, airport.lon) > -0.833;
                     $(day ? 'tod-day' : 'tod-night').checked = true;
-                    row('日/夜 Day/Night', `${day ? 'Day' : 'Night'}（太陽仰角 ${elev.toFixed(1)}°，依日出日落判定，請確認）`);
-                } else {
-                    row('日/夜 Day/Night', '無法取得機場座標，請手動選擇', 'text-amber-700 font-bold');
                 }
-
                 // Precipitation
                 precipSelect.value = map.precip || '';
                 if (map.precip === 'allowance_pl' && map.allowance) allowanceSelect.value = map.allowance;
-                row('降水 Precip', map.precip
-                    ? `${map.reason}`
-                    : `<span class="text-amber-700 font-bold">未自動選取：</span>${map.reason}`);
-                warn.push(...map.warnings);
+                map.usedIdx.forEach(i => used.add(i));
 
-                $('metarAutoInfo').innerHTML =
-                    `<div class="font-black text-sky-900 mb-2">METAR 自動帶入 · Auto-filled from METAR <span class="font-semibold text-gray-500">（請核對 / please verify）</span></div>` +
-                    rows.join('') +
-                    (warn.length ? `<div class="mt-2 text-amber-800 font-semibold">⚠️ ${warn.join('<br>⚠️ ')}</div>` : '');
-                $('metarAutoInfo').classList.remove('hidden');
+                renderMetar(P, used, source);
                 updateSystem();
             }
 
@@ -962,20 +971,114 @@
                         fetchMetar(icao),
                         fetchAirport(icao).catch(() => null)
                     ]);
-                    mDisplay.textContent = metar.raw;
-                    mDisplay.classList.remove('hidden');
                     applyMetar(metar.raw, metar.source, airport);
                 } catch (error) {
                     mError.innerHTML = `獲取 METAR 失敗。<br>💡 <span class="text-gray-600">Worker 與 VATSIM 皆無回應，請確認網路狀態或 ICAO 代碼。</span>`;
                     mError.classList.remove('hidden');
                     mDisplay.classList.add('hidden');
-                    $('metarAutoInfo').classList.add('hidden');
                 } finally {
                     btn.textContent = 'Load METAR';
                     btn.disabled = false;
                 }
             });
             $('icaoInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('fetchMetarBtn').click(); });
+
+            // ---------- Image viewer ----------
+            (function initViewer() {
+                const V = $('imgViewer'), I = $('ivImg');
+                let s = 1, tx = 0, ty = 0, fit = 1, natW = 0, natH = 0;
+                const ptrs = new Map();
+                let pinch = null, drag = null, lastTap = null, gesture = null;
+
+                const apply = () => { I.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`; };
+                const clamp = () => {
+                    const vw = V.clientWidth, vh = V.clientHeight, w = natW * s, h = natH * s;
+                    tx = w <= vw ? (vw - w) / 2 : Math.min(0, Math.max(vw - w, tx));
+                    ty = h <= vh ? (vh - h) / 2 : Math.min(0, Math.max(vh - h, ty));
+                };
+                const zoomAt = (ns, cx, cy) => {
+                    ns = Math.max(fit, Math.min(fit * 10, ns));
+                    tx = cx - (cx - tx) * (ns / s);
+                    ty = cy - (cy - ty) * (ns / s);
+                    s = ns; clamp(); apply();
+                };
+                const reset = () => {
+                    fit = Math.min(V.clientWidth / natW, V.clientHeight / natH);
+                    s = fit; tx = 0; ty = 0; clamp(); apply();
+                };
+                const open = (thumb) => {
+                    $('ivTitle').textContent = thumb.dataset.title || thumb.alt || '';
+                    V.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                    // show the already-loaded thumbnail immediately, then swap in the high-resolution version
+                    const show = (src) => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+                    show(thumb.currentSrc || thumb.src).then(im => {
+                        if (!im) return;
+                        I.src = im.src; natW = im.naturalWidth; natH = im.naturalHeight; I.style.width = natW + 'px'; I.style.height = natH + 'px'; reset();
+                        if (thumb.dataset.hd) show(thumb.dataset.hd).then(hd => {
+                            if (!hd || V.classList.contains('hidden')) return;
+                            const k = natW / hd.naturalWidth;          // keep the same on-screen size
+                            I.src = hd.src; natW = hd.naturalWidth; natH = hd.naturalHeight;
+                            I.style.width = natW + 'px'; I.style.height = natH + 'px';
+                            s *= k; fit *= k; apply();
+                        });
+                    });
+                };
+                const close = () => { V.classList.add('hidden'); document.body.style.overflow = ''; I.removeAttribute('src'); ptrs.clear(); pinch = drag = null; };
+
+                document.querySelectorAll('img.zoomable').forEach(img => img.addEventListener('click', () => open(img)));
+                $('ivClose').addEventListener('click', close);
+                $('ivIn').addEventListener('click', () => zoomAt(s * 1.6, V.clientWidth / 2, V.clientHeight / 2));
+                $('ivOut').addEventListener('click', () => zoomAt(s / 1.6, V.clientWidth / 2, V.clientHeight / 2));
+                document.addEventListener('keydown', e => { if (e.key === 'Escape' && !V.classList.contains('hidden')) close(); });
+                window.addEventListener('resize', () => { if (!V.classList.contains('hidden') && natW) reset(); });
+
+                V.addEventListener('wheel', e => { e.preventDefault(); zoomAt(s * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+                V.addEventListener('pointerdown', e => {
+                    if (e.target.closest('button')) return;
+                    V.setPointerCapture(e.pointerId);
+                    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                    if (ptrs.size === 2) {
+                        const [a, b] = [...ptrs.values()];
+                        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s };
+                        drag = null;
+                        if (gesture) gesture.multi = true;
+                    } else if (ptrs.size === 1) {
+                        gesture = { t: Date.now(), x: e.clientX, y: e.clientY, moved: false, multi: false };
+                        drag = { x: e.clientX, y: e.clientY, tx, ty };
+                    }
+                });
+                V.addEventListener('pointermove', e => {
+                    if (!ptrs.has(e.pointerId)) return;
+                    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                    if (gesture && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 10) gesture.moved = true;
+                    if (pinch && ptrs.size === 2) {
+                        const [a, b] = [...ptrs.values()];
+                        zoomAt(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
+                    } else if (drag) {
+                        tx = drag.tx + e.clientX - drag.x; ty = drag.ty + e.clientY - drag.y; clamp(); apply();
+                    }
+                });
+                const up = e => {
+                    ptrs.delete(e.pointerId);
+                    if (ptrs.size < 2) pinch = null;
+                    if (ptrs.size === 1) { const p = [...ptrs.values()][0]; drag = { x: p.x, y: p.y, tx, ty }; }
+                    if (ptrs.size === 0) {
+                        drag = null;
+                        // a "tap" = one finger, short, no movement; two taps close together = double tap
+                        if (e.type === 'pointerup' && gesture && !gesture.moved && !gesture.multi && Date.now() - gesture.t < 300) {
+                            const now = Date.now();
+                            if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+                                zoomAt(s > fit * 1.05 ? fit : fit * 3, e.clientX, e.clientY);
+                                lastTap = null;
+                            } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+                        } else lastTap = null;
+                        gesture = null;
+                    }
+                };
+                V.addEventListener('pointerup', up);
+                V.addEventListener('pointercancel', up);
+            })();
 
             // ---------- Listeners ----------
             document.querySelectorAll('input[name="unit"]').forEach(r => {
