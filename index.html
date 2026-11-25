@@ -146,6 +146,7 @@
                 <input type="text" id="icaoInput" placeholder="e.g. RJSS" maxlength="4" class="w-full bg-white border-2 border-blue-400 rounded-xl px-5 py-3 text-gray-800 uppercase font-mono text-lg tracking-widest focus:outline-none focus:ring-4 focus:ring-blue-100 transition shadow-sm">
                 <button id="fetchMetarBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow-md transition whitespace-nowrap active:scale-95 text-lg">Load METAR</button>
             </div>
+            <div id="metarAutoInfo" class="hidden mt-4 text-sm leading-relaxed bg-sky-50 border border-sky-200 rounded-xl p-4"></div>
         </div>
 
         <!-- De/Anti-Icing Fluid Selection -->
@@ -367,6 +368,7 @@
 
     <!-- HOT database (generated from the FAA PDF) -->
     <script src="data/hot-2026-27.js"></script>
+    <script src="js/metar.js"></script>
 
     <!-- Application Logic -->
     <script>
@@ -411,41 +413,83 @@
                 ]
             };
 
+            // FAA notes – zh-TW translation + original English (Winter 2026-2027)
             const N = {
-                listedT1: '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 58（Type I 防冰液測試清單），並適用其使用限制。',
-                listedT4: '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 61（Type IV 防冰液測試清單），並適用其使用限制。',
-                fp: 'Type I 防冰液/水混合比例必須使混合液冰點至少低於外部氣溫 10 °C (18 °F)。',
-                lout: '確保遵守最低操作使用溫度 (LOUT)。',
-                loutT4: '確保遵守最低操作使用溫度 (LOUT)。無法使用 Type IV 防冰液時，可考慮使用 Type I 防冰液。',
-                mist: '凍霧 (Freezing mist) 最好透過觀測確認。METAR 從不會報告凍霧，但當氣溫在 0 °C (32 °F) 或以下且有霧 (Mist) 時就可能發生。',
-                ic: '冰晶混合凍霧或凍霧時，適用凍霧的防護時間。',
-                t57: '判定降雪強度必須使用 Table 57（降雪強度與盛行能見度關係表）。若回報能見度對應為「大雪 (Heavy)」強度，則無防護時間。',
-                snowIc: '極輕、輕或中度雪混合冰晶時，適用降雪的防護時間。',
-                fzdz: '包含輕度、中度與重度凍毛毛雨。若無法確實辨識為凍毛毛雨，請改用輕凍雨的防護時間。',
-                modRain: '這些防護時間適用於「中度 (Moderate)」降水強度。若為極輕或輕度雪混合小雨或毛毛雨，改用輕凍雨的防護時間。必須使用 Table 57 確認降水強度；若對應為「大雪」則無防護時間。',
-                zero: '0 °C (32 °F) 或以下時，此狀況無防護時間。',
-                otherT1: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹。',
-                otherGen: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 55 / 56 提供 Type IV EG / PG 防冰液於冰珠及小冰雹的寬限時間；須確認所用防冰液於 Table 53 列為已驗證）。',
-                otherEG: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 55 提供 Type IV EG 防冰液於冰珠及小冰雹的寬限時間）。',
-                otherPG: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 56 提供 Type IV PG 防冰液於冰珠及小冰雹的寬限時間）。',
-                minus10: '-10 °C (14 °F) 以下時，此狀況（凍毛毛雨、輕凍雨）無防護時間。'
+                listedT1: { zh: '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 58（Type I 防冰液測試清單），並辨識及適用該防冰液的使用限制。',
+                    en: 'To use the holdover times in this table, ensure that the fluid and dilution being used is listed in the Type I Fluids Tested for Anti-Icing Performance and Aerodynamic Acceptance table (Table 58). Any restrictions on the use of the fluid have to be identified and applied.' },
+                listedT4: { zh: '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 61（Type IV 防冰液測試清單），並辨識及適用該防冰液的使用限制。',
+                    en: 'To use the holdover times in this table, ensure that the fluid and dilution being used is listed in the Type IV Fluids Tested for Anti-Icing Performance and Aerodynamic Acceptance table (Table 61). Any restrictions on the use of the fluid have to be identified and applied.' },
+                fp: { zh: 'Type I 防冰液/水混合比例必須使混合液的冰點至少低於外部氣溫 10 °C (18 °F)。',
+                    en: 'Type I fluid / water mixture must be selected so that the freezing point of the mixture is at least 10 °C (18 °F) below outside air temperature.' },
+                lout: { zh: '確保遵守最低操作使用溫度 (LOUT)。',
+                    en: 'Ensure that the lowest operational use temperature (LOUT) is respected.' },
+                loutT4: { zh: '確保遵守最低操作使用溫度 (LOUT)。無法使用 Type IV 防冰液時，可考慮使用 Type I 防冰液。',
+                    en: 'Ensure that the lowest operational use temperature (LOUT) is respected. Consider use of Type I fluid when Type IV fluid cannot be used.' },
+                mist: { zh: '凍霧 (Freezing mist) 最好透過觀測確認。METAR 從不會報告凍霧，但當氣溫在 0 °C (32 °F) 或以下且有霧 (Mist) 時就可能發生。',
+                    en: 'Freezing mist is best confirmed by observation. It is never reported by METAR; however, it can occur when mist is present at 0 °C (32 °F) and below.' },
+                ic: { zh: '冰晶混合凍霧或凍霧時，適用凍霧的防護時間。',
+                    en: 'Use freezing fog holdover times in conditions of ice crystals mixed with freezing fog or freezing mist.' },
+                t57: { zh: '判定降雪強度必須使用 Table 57（降雪強度與盛行能見度關係表）。若回報能見度對應為「大雪 (Heavy)」強度，則無防護時間。',
+                    en: 'To determine snowfall intensity, the Snowfall Intensities as a Function of Prevailing Visibility table (Table 57) is required. No holdover times exist if the reported visibility correlates to a “heavy” precipitation intensity.' },
+                snowIc: { zh: '極輕、輕或中度雪混合冰晶時，適用降雪的防護時間。',
+                    en: 'Use snow holdover times in conditions of very light, light, or moderate snow mixed with ice crystals.' },
+                fzdz: { zh: '包含輕度、中度與重度凍毛毛雨。若無法確實辨識為凍毛毛雨，請改用輕凍雨的防護時間。',
+                    en: 'Includes light, moderate and heavy freezing drizzle. Use light freezing rain holdover times if positive identification of freezing drizzle is not possible.' },
+                modRain: { zh: '這些防護時間適用於「中度 (Moderate)」降水強度。若為極輕或輕度雪混合小雨或毛毛雨，改用輕凍雨的防護時間。必須使用 Table 57 確認降水強度；若回報能見度對應為「大雪 (Heavy)」強度，則無防護時間。',
+                    en: 'These holdover times apply to conditions of “moderate” precipitation intensity. In cases of very light or light snow mixed with light rain or drizzle, use light freezing rain holdover times. The Snowfall Intensities as a Function of Prevailing Visibility table (Table 57) is required to confirm the precipitation intensity. No holdover times exist if the reported visibility correlates to a “heavy” precipitation intensity.' },
+                zero: { zh: '0 °C (32 °F) 或以下時，此狀況無防護時間。',
+                    en: 'No holdover time guidelines exist for this condition for 0 °C (32 °F) and below.' },
+                otherT1: { zh: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹。',
+                    en: 'Heavy snow, ice pellets, moderate and heavy freezing rain, small hail and hail.' },
+                otherGen: { zh: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 55 與 Table 56 提供 Type IV EG 與 Type IV PG 防冰液於冰珠及小冰雹的寬限時間；使用前須確認所用防冰液於 Table 53 列為已驗證）。',
+                    en: 'Heavy snow, ice pellets, moderate and heavy freezing rain, small hail and hail (Table 55 and Table 56 provides allowance times for Type IV EG and Type IV PG fluids in ice pellets and small hail. To use these allowance times, ensure that the fluid being used is listed as validated in Table 53).' },
+                otherEG: { zh: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 55 提供 Type IV EG 防冰液於冰珠及小冰雹的寬限時間）。',
+                    en: 'Heavy snow, ice pellets, moderate and heavy freezing rain, small hail and hail (Table 55 provides allowance times for Type IV EG fluids in ice pellets and small hail).' },
+                otherPG: { zh: 'Other：大雪、冰珠、中度與重度凍雨、小冰雹與冰雹（Table 56 提供 Type IV PG 防冰液於冰珠及小冰雹的寬限時間）。',
+                    en: 'Heavy snow, ice pellets, moderate and heavy freezing rain, small hail and hail (Table 56 provides allowance times for Type IV PG fluids in ice pellets and small hail).' },
+                minus10: { zh: '-10 °C (14 °F) 以下時，此狀況（凍毛毛雨、輕凍雨）無防護時間。',
+                    en: 'No holdover time guidelines exist for this condition below -10 °C (14 °F).' }
             };
             const FROST_NOTES = [
-                '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 58 – Table 61（防冰液測試清單），並適用其使用限制。',
+                { zh: '使用本表防護時間前，須確認所用防冰液及稀釋比例列於 Table 58 – Table 61（防冰液測試清單），並辨識及適用該防冰液的使用限制。',
+                  en: 'To use the holdover times in this table, ensure that the fluid and dilution being used is listed in the List of Fluids Tested for Anti-Icing Performance and Aerodynamic Acceptance table (Table 58 - Table 61). Any restrictions on the use of the fluid have to be identified and applied.' },
                 N.fp, N.lout,
-                '長時間結霜事件中外部氣溫變化可能很大，應採用從施打防冰液到起飛期間出現過的<strong>最低外部氣溫 (Coldest OAT)</strong> 對應的防護時間。',
-                '使用 Type III 結霜防護時間須知道防冰液品牌；AllClear AeroClear MAX 必須以未加熱方式施打。'
+                { zh: '長時間結霜事件中外部氣溫 (OAT) 變化可能很大，應採用從施打防冰液到起飛期間出現過的<strong>最低外部氣溫 (Coldest OAT)</strong> 對應的防護時間。',
+                  en: 'Changes in outside air temperature (OAT) over the course of longer frost events can be significant; the appropriate holdover time to use is the one provided for the coldest OAT that has occurred in the time between the de/anti-icing fluid application and takeoff.' },
+                { zh: '使用 Type III 結霜防護時間須知道所用防冰液品牌；AllClear AeroClear MAX 必須以未加熱方式施打。',
+                  en: 'To use the Type III fluid frost holdover times, the fluid brand being used must be known. AllClear AeroClear MAX must be applied unheated.' }
             ];
+            const AN = {
+                takeoff90: { zh: '若降水在寬限時間結束前（或當時）停止且未再開始，起飛時間上限為開始施打防冰液後 90 分鐘。在輕冰珠混合：輕凍毛毛雨、輕毛毛雨、輕凍雨、小雨、小雨與小雪、或輕凍雨與小雪，以及中度冰珠混合：輕/中度凍毛毛雨、輕/中度毛毛雨、或中度雨的狀況下，若 90 分鐘內外部氣溫下降，則不得起飛。',
+                    en: 'Takeoff is allowed up to 90 minutes after start of fluid application if the precipitation stops at or before the allowance time expires and does not restart. Takeoff is not permitted if the OAT decreases during the 90 minutes in conditions of light ice pellets mixed with either: light freezing drizzle; light drizzle; light freezing rain; light rain; light rain and light snow; or light freezing rain and light snow, as well as in conditions of moderate ice pellets mixed with either: light or moderate freezing drizzle; light or moderate drizzle; or moderate rain.' },
+                metarCodes: { zh: '適用的 METAR 代碼僅列出冰珠 (PL)。回報小冰雹 (Small Hail) 而非冰珠時亦可使用寬限時間，但表中未列出小冰雹對應的 METAR 代碼。',
+                    en: 'Applicable METAR codes include only Ice Pellet conditions (i.e., PL). While allowance times can be used when Small Hail is reported instead of Ice Pellets, the corresponding METAR codes for Small Hail are not listed in the table.' },
+                country: { zh: '各國 METAR 回報小冰雹的方式不同，相同的 METAR 代碼在不同地區可能對應不同的防護時間或寬限時間。詳見 FAA Ground Deicing Program General Information Document 中的「METAR Codes and Holdover or Allowance Times Used by Country」表。',
+                    en: 'The reporting of Small Hail by METAR varies by country, which can result in different HOTs or allowance times when the same METAR code is used in different regions. For details, refer to the METAR Codes and Holdover or Allowance Times Used by Country table in the FAA Ground Deicing Program General Information Document.' },
+                hailIntensity: { zh: '若 METAR 未回報小冰雹的強度，使用「中度冰珠或小冰雹」的寬限時間。若有回報強度，可使用相同強度的狀況，例如回報輕度小冰雹，可使用「輕冰珠」的寬限時間；混合狀況亦同，例如輕度小冰雹混合小雪，使用「輕冰珠混合小雪」的寬限時間。',
+                    en: 'If the METAR does not report an intensity for small hail, use the “moderate ice pellets or small hail” allowance times. If the METAR reports an intensity with small hail, the condition with the equivalent intensity can be used, e.g., if light small hail is reported, the “light ice pellets” allowance times can be used. This also applies in mixed conditions, e.g., if light small hail mixed with light snow is reported, use the “light ice pellets mixed with light snow” allowance times.' }
+            };
             const ALLOW_NOTES = {
-                common: [
-                    '起飛時間上限為開始施打防冰液後 90 分鐘，前提是降水在寬限時間結束前（或當時）停止且未再開始。在冰珠混合（輕）凍毛毛雨、毛毛雨、凍雨、雨，或輕凍雨+輕雪、小雨+輕雪，以及中度冰珠混合（輕/中度）凍毛毛雨、毛毛雨或中度雨的狀況下，若 90 分鐘內外部氣溫下降，則不得起飛。',
-                    N.lout,
-                    '適用的 METAR 代碼僅列出冰珠 (PL)。回報小冰雹 (Small Hail) 時亦可使用寬限時間，但表中未列出小冰雹的 METAR 代碼。',
-                    '各國 METAR 回報小冰雹的方式不同，相同代碼在不同地區可能對應不同的防護/寬限時間，詳見 FAA Ground Deicing Program General Information Document。',
-                    '若 METAR 未回報小冰雹強度，使用「中度冰珠或小冰雹」的寬限時間；若有回報強度，可使用相同強度的狀況（例如輕度小冰雹 → 輕冰珠；輕度小冰雹混合小雪 → 輕冰珠混合小雪）。'
+                // Table 55 notes 1-7
+                EG: [
+                    { zh: '這些寬限時間僅適用於 100/0 未稀釋的 EG 基底防冰液。使用前須確認所用防冰液列於 Table 53（寬限時間驗證狀態表）。',
+                      en: 'These allowance times are for use with undiluted (100/0) EG-based fluids. To use the allowance times in this table, ensure the fluid being used is listed in the Validation Status of Fluids for Use with Allowance Times (Table 53).' },
+                    AN.takeoff90, N.lout,
+                    { zh: '仰轉速度低於 100 kt 的航空器，EG 基底防冰液無寬限時間（適用所有溫度欄）。',
+                      en: 'No allowance times exist for EG-based fluids when used on aircraft with rotation speeds less than 100 knots.' },
+                    AN.metarCodes, AN.country, AN.hailIntensity
                 ],
-                EG: ['僅適用於 100/0 未稀釋的 EG 基底防冰液，且所用防冰液須於 Table 53 列為已驗證。', '仰轉速度 (Rotation speed) 低於 100 kt 的航空器，EG 基底防冰液無寬限時間。'],
-                PG: ['僅適用於 100/0 未稀釋的 PG 基底防冰液，且航空器仰轉速度須達 100 kt 以上；所用防冰液須於 Table 53 列為已驗證。', '0 °C 至 -10 °C 及 0 °C 以上：仰轉速度低於 100 kt 時無寬限時間。', '<strong>-10 °C 以下（-10 至 -22 °C）：仰轉速度低於 115 kt 時無寬限時間。</strong>']
+                // Table 56 notes 1-8
+                PG: [
+                    { zh: '這些寬限時間僅適用於 100/0 未稀釋、且施用於仰轉速度 100 kt 以上航空器的 PG 基底防冰液。使用前須確認所用防冰液列於 Table 53（寬限時間驗證狀態表）。',
+                      en: 'These allowance times are for use with undiluted (100/0) PG-based fluids applied on aircraft with rotation speeds of 100 knots or greater. To use the allowance times in this table, ensure the fluid being used is listed in the Validation Status of Fluids for Use with Allowance Times (Table 53).' },
+                    AN.takeoff90, N.lout,
+                    { zh: '仰轉速度低於 100 kt 的航空器，PG 基底防冰液無寬限時間（適用於 Above 0 °C、0 至 -5 °C、below -5 至 -10 °C 欄）。',
+                      en: 'No allowance times exist for PG-based fluids when used on aircraft with rotation speeds less than 100 knots.' },
+                    { zh: '<strong>仰轉速度低於 115 kt 的航空器，PG 基底防冰液無寬限時間（適用於 below -10 至 -16 °C、below -16 至 -22 °C 欄）。</strong>',
+                      en: 'No allowance times exist for PG-based fluids when used on aircraft with rotation speeds less than 115 knots.' },
+                    AN.metarCodes, AN.country, AN.hailIntensity
+                ]
             };
 
             // ---------- DOM ----------
@@ -574,7 +618,7 @@
             function renderList(containerId, items, numbered, accent) {
                 $(containerId).innerHTML = items.map((txt, i) =>
                     `<div class="p-5 border-b border-gray-100 hover:bg-gray-50 transition-colors leading-relaxed">
-                        <span class="font-black ${accent} mr-2 text-base">${numbered ? (numbered === true ? 'Note ' + (i + 1) : numbered[i]) : '•'}</span>${txt}</div>`
+                        <span class="font-black ${accent} mr-2 text-base">${numbered ? (numbered === true ? 'Note ' + (i + 1) : numbered[i]) : '•'}</span>${typeof txt === 'string' ? txt : `${txt.zh}<br><span class="text-gray-500">${txt.en}</span>`}</div>`
                 ).join('');
             }
 
@@ -583,7 +627,7 @@
                 if (precipVal === 'allowance_pl' && fluid.type === 'IV') {
                     const g = glycol || 'PG';
                     title = `FAA 備註 (NOTES) – Allowance Times, Type IV ${g} (Table ${g === 'EG' ? 55 : 56})`;
-                    notes = [...ALLOW_NOTES[g], ...ALLOW_NOTES.common];
+                    notes = ALLOW_NOTES[g];
                     cTitle = 'FAA 注意事項 (CAUTIONS) – Allowance Times';
                     cautions = CAUTIONS.allowance;
                 } else if (precipVal === 'active_frost') {
@@ -800,13 +844,110 @@
             }
 
             // ---------- METAR ----------
+            // Primary: own Cloudflare Worker (same deployment the briefing package uses; merges NOAA tgftp + AWC,
+            // picks the newer report). Fallback: VATSIM (raw text only, CORS open).
+            const WX_API = 'https://briefing-package.zihchi.workers.dev/api/wx';
+            const airportCache = {};
+            const withTimeout = (ms) => { const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; };
+
+            async function fetchMetar(icao) {
+                try {
+                    const res = await fetch(`${WX_API}?type=metar&ids=${icao}`, { cache: 'no-store', signal: withTimeout(8000) });
+                    if (!res.ok) throw new Error('Worker HTTP ' + res.status);
+                    const data = await res.json();
+                    const row = Array.isArray(data) ? (data.find(r => r.icaoId === icao) || data[0]) : null;
+                    const raw = row && (row.rawOb || row.raw);
+                    if (!raw) throw new Error('Worker empty');
+                    return { raw: raw.trim(), source: 'Worker (NOAA)' };
+                } catch (e) {
+                    const res = await fetch(`https://metar.vatsim.net/metar.php?id=${icao}`, { signal: withTimeout(8000) });
+                    if (!res.ok) throw new Error('VATSIM HTTP ' + res.status);
+                    const text = (await res.text()).trim();
+                    if (!text || !text.includes(icao)) throw new Error('VATSIM empty');
+                    return { raw: text.split('\n')[0].trim(), source: 'VATSIM（備援）' };
+                }
+            }
+            async function fetchAirport(icao) {
+                if (airportCache[icao]) return airportCache[icao];
+                const res = await fetch(`${WX_API}?type=airport&ids=${icao}`, { signal: withTimeout(8000) });
+                if (!res.ok) throw new Error('airport HTTP ' + res.status);
+                const data = await res.json();
+                const a = Array.isArray(data) && data.find(r => r.icaoId === icao);
+                if (!a || typeof a.lat !== 'number' || typeof a.lon !== 'number') throw new Error('no coordinates');
+                return (airportCache[icao] = { lat: a.lat, lon: a.lon, name: a.name });
+            }
+
+            function applyMetar(raw, source, airport) {
+                const P = window.MetarHOT.parse(raw);
+                const map = window.MetarHOT.mapPrecip(P);
+                const rows = [];
+                const row = (label, value, cls = '') => rows.push(`<div class="flex gap-2"><span class="font-bold text-sky-800 whitespace-nowrap">${label}</span><span class="${cls}">${value}</span></div>`);
+                const warn = [];
+
+                // Observation time / age
+                if (P.time) {
+                    const age = Math.round((Date.now() - P.time.getTime()) / 60000);
+                    const hhmm = String(P.time.getUTCHours()).padStart(2, '0') + String(P.time.getUTCMinutes()).padStart(2, '0') + 'Z';
+                    row('觀測時間 Obs', `${hhmm}（${age >= 0 ? age + ' 分鐘前' : '—'}）· 來源 ${source}`, age > 90 ? 'text-red-600 font-bold' : '');
+                    if (age > 90) warn.push('METAR 已超過 90 分鐘，請確認是否為最新報告。');
+                } else {
+                    row('來源 Source', source);
+                }
+
+                // Temperature
+                if (P.tempC !== null) {
+                    tempSelect.value = P.tempC > 0 ? 'above_0' : (P.tempC >= -40 ? String(P.tempC) : '');
+                    row('溫度 OAT', `${P.tempC} °C → ${P.tempC > 0 ? 'Above 0 °C' : P.tempC + ' °C'}`);
+                } else {
+                    row('溫度 OAT', '無法解析，請手動選擇', 'text-red-600 font-bold');
+                }
+
+                // Prevailing visibility (never RVR)
+                if (P.vis) {
+                    const unitRadio = $(P.vis.unit === 'sm' ? 'unit-sm' : 'unit-m');
+                    unitRadio.checked = true;
+                    populateVisibilityOptions(P.vis.unit, false);
+                    visSelect.value = String(P.vis.index);
+                    const label = visSelect.options[visSelect.selectedIndex] ? visSelect.options[visSelect.selectedIndex].text : '';
+                    row('盛行能見度 Prevailing Vis', `<span class="font-mono">${P.vis.text}</span> → Table 57: ${label}<span class="text-gray-500">（使用盛行能見度，不使用 RVR）</span>`);
+                } else {
+                    visSelect.value = '';
+                    row('盛行能見度 Prevailing Vis', '無法解析，請手動選擇', 'text-red-600 font-bold');
+                }
+
+                // Day / Night from sun elevation at observation time
+                if (airport && P.time) {
+                    const elev = window.MetarHOT.sunElevation(P.time, airport.lat, airport.lon);
+                    const day = elev > -0.833;   // between sunrise and sunset
+                    $(day ? 'tod-day' : 'tod-night').checked = true;
+                    row('日/夜 Day/Night', `${day ? 'Day' : 'Night'}（太陽仰角 ${elev.toFixed(1)}°，依日出日落判定，請確認）`);
+                } else {
+                    row('日/夜 Day/Night', '無法取得機場座標，請手動選擇', 'text-amber-700 font-bold');
+                }
+
+                // Precipitation
+                precipSelect.value = map.precip || '';
+                if (map.precip === 'allowance_pl' && map.allowance) allowanceSelect.value = map.allowance;
+                row('降水 Precip', map.precip
+                    ? `${map.reason}`
+                    : `<span class="text-amber-700 font-bold">未自動選取：</span>${map.reason}`);
+                warn.push(...map.warnings);
+
+                $('metarAutoInfo').innerHTML =
+                    `<div class="font-black text-sky-900 mb-2">METAR 自動帶入 · Auto-filled from METAR <span class="font-semibold text-gray-500">（請核對 / please verify）</span></div>` +
+                    rows.join('') +
+                    (warn.length ? `<div class="mt-2 text-amber-800 font-semibold">⚠️ ${warn.join('<br>⚠️ ')}</div>` : '');
+                $('metarAutoInfo').classList.remove('hidden');
+                updateSystem();
+            }
+
             $('fetchMetarBtn').addEventListener('click', async () => {
                 const icao = $('icaoInput').value.trim().toUpperCase();
                 const btn = $('fetchMetarBtn');
                 const mDisplay = $('metarDisplay');
                 const mError = $('metarError');
 
-                if (icao.length !== 4) {
+                if (!/^[A-Z][A-Z0-9]{3}$/.test(icao)) {
                     mError.innerHTML = '請輸入正確的 4 碼 ICAO 代碼 (例如: RJCC)';
                     mError.classList.remove('hidden');
                     mDisplay.classList.add('hidden');
@@ -814,69 +955,27 @@
                 }
 
                 btn.textContent = 'Loading...';
+                btn.disabled = true;
                 mError.classList.add('hidden');
-
-                // 首選：自有 Cloudflare Worker 直打 NOAA（快又新鮮，CORS 已開放 zihchi.github.io）
-                const fetchWorker = async () => {
-                    const res = await fetch(`https://elb.zihchi.workers.dev/api/wx?type=metar&ids=${icao}`, { cache: 'no-store' });
-                    if (!res.ok) throw new Error('Worker failed');
-                    const data = await res.json();
-                    if (!data || data.length === 0) throw new Error('Worker empty');
-                    return { raw: data[0].rawOb || data[0].raw, temp: data[0].temp != null ? Math.round(data[0].temp) : null };
-                };
-                const fetchNoaaJson = async () => {
-                    const res = await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`);
-                    if (!res.ok) throw new Error('NOAA JSON failed');
-                    const data = await res.json();
-                    if (!data || data.length === 0) throw new Error('NOAA JSON empty');
-                    return { raw: data[0].rawOb || data[0].raw, temp: data[0].temp != null ? Math.round(data[0].temp) : null };
-                };
-                const fetchNoaaText = async () => {
-                    const res = await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}`);
-                    if (!res.ok) throw new Error('NOAA Text failed');
-                    const text = await res.text();
-                    if (!text.trim()) throw new Error('NOAA Text empty');
-                    return { raw: text.trim(), temp: null };
-                };
-                const fetchVatsim = async () => {
-                    const res = await fetch(`https://metar.vatsim.net/metar.php?id=${icao}`);
-                    if (!res.ok) throw new Error('VATSIM failed');
-                    const text = await res.text();
-                    if (!text.trim()) throw new Error('VATSIM empty');
-                    return { raw: text.trim(), temp: null };
-                };
-
                 try {
-                    const result = await Promise.any([fetchWorker(), fetchNoaaJson(), fetchNoaaText(), fetchVatsim()]);
-                    let rawMetar = result.raw;
-                    let tempC = result.temp;
-
-                    if (tempC === null) {
-                        const match = rawMetar.match(/\b(M?\d{2})\/(M?\d{2})?\b/);
-                        if (match) {
-                            const val = parseInt(match[1].replace('M', ''), 10);
-                            tempC = match[1].startsWith('M') ? -val : val;
-                        }
-                    }
-
-                    mDisplay.textContent = rawMetar;
+                    const [metar, airport] = await Promise.all([
+                        fetchMetar(icao),
+                        fetchAirport(icao).catch(() => null)
+                    ]);
+                    mDisplay.textContent = metar.raw;
                     mDisplay.classList.remove('hidden');
-
-                    if (tempC !== null) {
-                        let tempValueToSet = "";
-                        if (tempC > 0) tempValueToSet = 'above_0';
-                        else if (tempC >= -40 && tempC <= 0) tempValueToSet = tempC.toString();
-                        if (tempValueToSet) tempSelect.value = tempValueToSet;
-                    }
-                    updateSystem();
+                    applyMetar(metar.raw, metar.source, airport);
                 } catch (error) {
-                    mError.innerHTML = `獲取 METAR 失敗。<br>💡 <span class="text-gray-600">所有氣象伺服器皆無回應，請確認網路狀態。</span>`;
+                    mError.innerHTML = `獲取 METAR 失敗。<br>💡 <span class="text-gray-600">Worker 與 VATSIM 皆無回應，請確認網路狀態或 ICAO 代碼。</span>`;
                     mError.classList.remove('hidden');
                     mDisplay.classList.add('hidden');
+                    $('metarAutoInfo').classList.add('hidden');
                 } finally {
                     btn.textContent = 'Load METAR';
+                    btn.disabled = false;
                 }
             });
+            $('icaoInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('fetchMetarBtn').click(); });
 
             // ---------- Listeners ----------
             document.querySelectorAll('input[name="unit"]').forEach(r => {
